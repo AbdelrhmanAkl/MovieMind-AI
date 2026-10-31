@@ -132,9 +132,19 @@ def profile_labels():
 
 PROFILES = profile_labels()
 
+FIRST = ["Omar", "Sara", "Youssef", "Mona", "Karim", "Laila", "Hassan", "Nour", "Tarek", "Salma", "Adam", "Yasmin",
+         "Ziad", "Dina", "Ali", "Hana", "Mostafa", "Farida", "Ibrahim", "Rana", "Khaled", "Mariam", "Amir", "Jana",
+         "Sam", "Emma", "Liam", "Mia", "Noah", "Zoe", "Leo", "Ava", "Ethan", "Chloe", "Lucas", "Nina", "Ryan", "Lily",
+         "Daniel", "Sofia", "Max", "Ella", "Jack", "Maya", "Ben", "Iris", "Theo", "Ruby", "Eli", "Nora", "Owen", "Alma"]
+
+def display_name(u):
+    """Stable display alias for an anonymous MovieLens user id (the dataset has no real names)."""
+    u = int(u)
+    return f"{FIRST[(u * 37) % len(FIRST)]} {chr(65 + (u * 11 + u // len(FIRST)) % 26)}."
+
 def user_label(u):
     t = PROFILES.get(int(u))
-    return f"User #{u} · {t} fan" if t else f"User #{u}"
+    return f"{display_name(u)} (#{u})" + (f" · {t} fan" if t else "")
 
 # ---------------------------------------------------------------- posters (TMDB, verified by title + year)
 def _tmdb_key():
@@ -149,11 +159,12 @@ def _clean(title):
     m = re.match(r"^(.*), (The|A|An|Les|La|Le|Il|Das|Der|Die)$", t)
     return f"{m.group(2)} {m.group(1)}" if m else t
 
-@st.cache_data(show_spinner=False, ttl=60 * 60 * 24 * 7)
-def poster_url(title):
+def _norm(t):
+    return re.sub(r"[^a-z0-9]", "", str(t).lower())
+
+def _tmdb_poster(title, year):
     key = _tmdb_key()
-    year = year_of(title)
-    if not key or not year:
+    if not key:
         return None
     try:
         r = requests.get("https://api.themoviedb.org/3/search/movie", timeout=6,
@@ -165,6 +176,33 @@ def poster_url(title):
     except Exception:
         pass
     return None
+
+def _wiki_poster(title, year):
+    """No-key fallback: the film's own Wikipedia page image, accepted only if title and year match."""
+    clean = _clean(title)
+    try:
+        r = requests.get("https://en.wikipedia.org/w/api.php", timeout=6,
+                         headers={"User-Agent": "MovieMindAI/1.0 (student project)"},
+                         params={"action": "query", "format": "json", "generator": "search",
+                                 "gsrsearch": f"{clean} {year} film", "gsrlimit": 4, "prop": "pageimages|extracts",
+                                 "piprop": "thumbnail", "pithumbsize": 342, "exintro": 1, "explaintext": 1,
+                                 "exsentences": 2, "exlimit": "max"})
+        pages = sorted(r.json().get("query", {}).get("pages", {}).values(), key=lambda p: p.get("index", 99))
+        for p in pages:
+            ok_title = _norm(p.get("title", "")).startswith(_norm(clean))
+            ok_year = str(year) in (p.get("title", "") + " " + p.get("extract", ""))
+            if ok_title and ok_year and p.get("thumbnail"):
+                return p["thumbnail"]["source"]
+    except Exception:
+        pass
+    return None
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 24 * 7)
+def poster_url(title):
+    year = year_of(title)
+    if not year:
+        return None
+    return _tmdb_poster(title, year) or _wiki_poster(title, year)
 
 def posters_for(titles):
     titles = list(titles)
@@ -318,7 +356,7 @@ elif page == "Discover":
 
 # ---------------------------------------------------------------- FOR YOU
 elif page == "For You":
-    render_section_header("For you", "Your recommendations combine collaborative filtering with popularity-based "
+    render_section_header("For you", "Profile names are display aliases for anonymous MovieLens users. Your recommendations combine collaborative filtering with popularity-based "
                           "ranking to discover movies aligned with your viewing preferences.")
     try:
         service = get_service()
@@ -352,7 +390,7 @@ elif page == "For You":
 
     if "rec" in st.session_state:
         rec, ruid, rdiv = st.session_state["rec"]
-        render_section_header(f"Picked for User #{ruid}", "MMR diversity enabled." if rdiv else "Standard hybrid ranking.")
+        render_section_header(f"Picked for {display_name(ruid)}", "MMR diversity enabled." if rdiv else "Standard hybrid ranking.")
         rec = rec.merge(movies[["movie_id"] + GENRES], on="movie_id", how="left", suffixes=("", "_m"))
         urls = posters_for(rec["title"])
         score_col = next((c for c in ("score", "rrf_score", "hybrid_score", "final_score") if c in rec.columns), None)
@@ -402,4 +440,4 @@ else:
     render_section_header("Project")
     st.markdown(f"**Author:** Abdelrahman Akl  \n[GitHub repository]({GITHUB}) · [Live demo]({LIVE}) · "
                 f"[GitHub profile](https://github.com/AbdelrhmanAkl) · [LinkedIn]({LINKEDIN})")
-    st.caption("Movie posters and metadata are provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.")
+    st.caption("Posters come from TMDB (when configured) or Wikipedia. This product uses the TMDB API but is not endorsed or certified by TMDB.")
