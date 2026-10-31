@@ -1,876 +1,382 @@
-
+import html
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 import pandas as pd
 import plotly.express as px
+import requests
 import streamlit as st
 
 from src.moviemind.data.loader import load_movies, load_ratings
 from src.moviemind.services.recommendation_service import RecommendationService
 
+st.set_page_config(page_title="MovieMind AI", page_icon="🎬", layout="wide",
+                   initial_sidebar_state="collapsed")
 
-# =========================================================
-# PAGE CONFIGURATION
-# =========================================================
+PAGES = ["Home", "Discover", "For You", "Analytics", "About"]
+GITHUB = "https://github.com/AbdelrhmanAkl/MovieMind-AI"
+LIVE = "https://moviemind-ai-0.streamlit.app/"
+LINKEDIN = "https://www.linkedin.com/in/abdelrahmanakl/"
 
-st.set_page_config(
-    page_title="MovieMind AI",
-    page_icon="🎬",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+# ---------------------------------------------------------------- styles
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap');
+:root{--bg:#080B12;--bg2:#101622;--card:#151D2B;--elev:#1B2637;--a:#8B7CFF;--b:#42D6C5;
+--gold:#F2C879;--tx:#F5F7FC;--tx2:#9AA7BA;--mut:#657187;--bd:rgba(255,255,255,.08)}
+html,body,[class*="css"]{font-family:'Inter',sans-serif}
+.stApp{background:var(--bg);color:var(--tx)}
+[data-testid="stHeader"],[data-testid="stSidebar"],[data-testid="collapsedControl"],footer{display:none!important}
+.block-container{max-width:1240px;padding:1.2rem 1.5rem 3rem}
+h1,h2,h3,.disp{font-family:'Space Grotesk',sans-serif;letter-spacing:-.02em;color:var(--tx)}
+/* nav */
+div[data-testid="stRadio"] > div[role="radiogroup"]{gap:6px;background:var(--bg2);border:1px solid var(--bd);
+ padding:5px;border-radius:14px;width:fit-content;flex-wrap:wrap}
+div[data-testid="stRadio"] label{padding:8px 18px;border-radius:10px;cursor:pointer;margin:0}
+div[data-testid="stRadio"] label > div:first-child{display:none}
+div[data-testid="stRadio"] label p{color:var(--tx2);font-weight:500;font-size:14px}
+div[data-testid="stRadio"] label:has(input:checked){background:var(--elev)}
+div[data-testid="stRadio"] label:has(input:checked) p{color:var(--tx)}
+.brand{font-family:'Space Grotesk';font-weight:700;font-size:22px;color:var(--tx)}
+.brand i{font-style:normal;color:var(--a)}
+/* hero */
+.hero{position:relative;border-radius:22px;overflow:hidden;min-height:430px;margin:14px 0 28px;
+ border:1px solid var(--bd);background:linear-gradient(120deg,#1B1740,#0F2A33)}
+.hero .wall{position:absolute;inset:-10px;display:grid;grid-template-columns:repeat(8,1fr);gap:8px;opacity:.55;transform:rotate(-4deg) scale(1.1)}
+.hero .wall img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:8px}
+.hero .shade{position:absolute;inset:0;background:linear-gradient(90deg,rgba(8,11,18,.97) 0%,rgba(8,11,18,.82) 45%,rgba(8,11,18,.35) 100%)}
+.hero .in{position:relative;padding:64px 52px;max-width:660px}
+.hero h1{font-size:clamp(34px,5vw,58px);line-height:1.05;margin:0 0 16px;font-weight:700}
+.hero p{color:var(--tx2);font-size:17px;line-height:1.7;margin:0}
+h2.sec{font-size:26px;margin:34px 0 4px;font-weight:600}
+.sub{color:var(--tx2);font-size:14px;margin-bottom:16px}
+/* cards */
+.poster{border-radius:14px;overflow:hidden;background:var(--card);border:1px solid var(--bd);transition:transform .2s,border-color .2s}
+.poster:hover{transform:translateY(-4px);border-color:rgba(139,124,255,.6)}
+.poster .img{aspect-ratio:2/3;width:100%;position:relative;background:linear-gradient(160deg,#241F4D,#12313A)}
+.poster img{width:100%;height:100%;object-fit:cover;display:block}
+.poster .ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+ font:700 54px 'Space Grotesk';color:rgba(255,255,255,.18)}
+.poster .rk{position:absolute;top:10px;left:10px;background:var(--gold);color:#201500;font-weight:700;
+ font-size:12px;padding:3px 9px;border-radius:20px;z-index:2}
+.poster .bd{padding:12px 13px 14px}
+.poster .t{font-weight:600;font-size:14px;line-height:1.35;min-height:38px;color:var(--tx);
+ display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.poster .m{color:var(--mut);font-size:12px;margin-top:4px}
+.tag{display:inline-block;font-size:11px;color:var(--b);background:rgba(66,214,197,.09);
+ border:1px solid rgba(66,214,197,.2);border-radius:20px;padding:2px 8px;margin:6px 4px 0 0}
+.stat{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px 22px}
+.stat b{font:700 32px 'Space Grotesk';display:block}.stat span{color:var(--tx2);font-size:13px}
+.panel{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:24px}
+.flow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.flow div{background:var(--elev);border:1px solid var(--bd);border-radius:12px;padding:12px 16px;font-size:13px;font-weight:500}
+.flow span{color:var(--a)}
+.badge{display:inline-block;background:var(--elev);border:1px solid var(--bd);border-radius:10px;padding:8px 14px;margin:0 8px 8px 0;font-size:13px}
+div.stButton>button{background:var(--a);color:#0B0820;border:0;border-radius:11px;font-weight:600;min-height:42px}
+div.stButton>button:hover{background:#A094FF;color:#0B0820}
+div.stButton>button[kind="secondary"]{background:var(--elev);color:var(--tx);border:1px solid var(--bd)}
+div[data-baseweb="select"]>div,div[data-baseweb="input"]>div{background:var(--bg2)!important;border-color:var(--bd)!important;border-radius:11px}
+a{color:var(--b)!important}
+@media(max-width:760px){.hero .in{padding:36px 22px}.hero .wall{grid-template-columns:repeat(4,1fr)}}
+</style>
+""", unsafe_allow_html=True)
 
-
-# =========================================================
-# DESIGN SYSTEM
-# =========================================================
-
-st.markdown(
-    """
-    <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-    :root {
-        --bg: #080D18;
-        --surface: #101827;
-        --surface-2: #151F31;
-        --border: #243149;
-        --text: #F1F5F9;
-        --muted: #94A3B8;
-        --accent: #38BDF8;
-        --accent-2: #818CF8;
-    }
-
-    html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
-    }
-
-    .stApp {
-        background:
-            radial-gradient(ellipse at 15% 0%, rgba(56,189,248,.08), transparent 35%),
-            radial-gradient(ellipse at 90% 10%, rgba(129,140,248,.07), transparent 30%),
-            var(--bg);
-        color: var(--text);
-    }
-
-    [data-testid="stHeader"] {
-        background: transparent;
-    }
-
-    [data-testid="stSidebar"] {
-        background: #0D1524;
-        border-right: 1px solid var(--border);
-    }
-
-    [data-testid="stSidebar"] > div:first-child {
-        padding-top: 2rem;
-    }
-
-    [data-testid="stSidebar"] * {
-        color: var(--text);
-    }
-
-    .brand {
-        font-size: 25px;
-        font-weight: 800;
-        letter-spacing: -1.2px;
-        color: #F8FAFC;
-    }
-
-    .brand span {
-        color: var(--accent);
-    }
-
-    .brand-caption {
-        color: var(--muted);
-        font-size: 11px;
-        letter-spacing: 2px;
-        margin-top: 5px;
-    }
-
-    .eyebrow {
-        color: var(--accent);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 2px;
-        text-transform: uppercase;
-        margin-bottom: 10px;
-    }
-
-    .hero-title {
-        color: #F8FAFC;
-        font-size: clamp(30px, 4vw, 48px);
-        font-weight: 800;
-        line-height: 1.15;
-        letter-spacing: -2px;
-        margin-bottom: 12px;
-    }
-
-    .hero-title span {
-        color: var(--accent);
-    }
-
-    .hero-description {
-        color: var(--muted);
-        font-size: 14px;
-        line-height: 1.8;
-        max-width: 700px;
-        margin-bottom: 28px;
-    }
-
-    .section-heading {
-        color: var(--text);
-        font-size: 22px;
-        font-weight: 750;
-        letter-spacing: -.6px;
-        margin: 25px 0 5px 0;
-    }
-
-    .section-description {
-        color: var(--muted);
-        font-size: 13px;
-        margin-bottom: 20px;
-    }
-
-    .metric-card {
-        background: linear-gradient(145deg, #17243A, #101827);
-        border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 21px;
-        min-height: 125px;
-        transition: .2s ease;
-    }
-
-    .metric-card:hover {
-        border-color: #3B82F6;
-        transform: translateY(-2px);
-    }
-
-    .metric-label {
-        color: var(--muted);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 1px;
-    }
-
-    .metric-value {
-        color: #F8FAFC;
-        font-size: 29px;
-        font-weight: 800;
-        margin-top: 13px;
-        letter-spacing: -1px;
-    }
-
-    .metric-note {
-        color: #64748B;
-        font-size: 11px;
-        margin-top: 4px;
-    }
-
-    .movie-card {
-        background: linear-gradient(155deg, #17243A, #101827);
-        border: 1px solid var(--border);
-        border-radius: 15px;
-        padding: 17px;
-        min-height: 190px;
-        margin-bottom: 14px;
-        transition: .2s ease;
-    }
-
-    .movie-card:hover {
-        border-color: var(--accent);
-        transform: translateY(-3px);
-    }
-
-    .movie-number {
-        color: var(--accent);
-        font-size: 11px;
-        font-weight: 700;
-        letter-spacing: 1px;
-        margin-bottom: 12px;
-    }
-
-    .movie-title {
-        color: #F8FAFC;
-        font-size: 16px;
-        font-weight: 750;
-        line-height: 1.5;
-        margin-bottom: 12px;
-    }
-
-    .movie-meta {
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.8;
-    }
-
-    .movie-tag {
-        display: inline-block;
-        background: rgba(56,189,248,.10);
-        color: #7DD3FC;
-        border: 1px solid rgba(56,189,248,.20);
-        border-radius: 20px;
-        padding: 4px 9px;
-        font-size: 10px;
-        margin: 3px 3px 0 0;
-    }
-
-    .hero-panel {
-        background: linear-gradient(115deg, #14243A, #171B35);
-        border: 1px solid #2B3C58;
-        border-radius: 20px;
-        padding: 30px;
-        margin: 15px 0 25px 0;
-    }
-
-    .hero-panel-title {
-        font-size: 27px;
-        font-weight: 800;
-        color: #F8FAFC;
-        margin-bottom: 9px;
-    }
-
-    .hero-panel-text {
-        color: #A8B7CA;
-        font-size: 13px;
-        line-height: 1.8;
-    }
-
-    div.stButton > button {
-        background: linear-gradient(100deg, #0284C7, #4F46E5);
-        color: white;
-        border: 0;
-        border-radius: 10px;
-        padding: 10px 18px;
-        min-height: 43px;
-        font-weight: 700;
-        transition: .2s ease;
-    }
-
-    div.stButton > button:hover {
-        border: 0;
-        color: white;
-        filter: brightness(1.15);
-    }
-
-    div[data-baseweb="select"] > div,
-    div[data-baseweb="input"] > div {
-        background: #111C2D;
-        border-color: var(--border);
-        border-radius: 10px;
-    }
-
-    .stTextInput label,
-    .stSelectbox label,
-    .stSlider label {
-        color: #CBD5E1 !important;
-        font-weight: 600;
-    }
-
-    [data-testid="stMetric"] {
-        background: var(--surface);
-        border: 1px solid var(--border);
-        padding: 15px;
-        border-radius: 12px;
-    }
-
-    [data-testid="stMetricLabel"] {
-        color: var(--muted);
-    }
-
-    [data-testid="stMetricValue"] {
-        color: var(--text);
-    }
-
-    hr {
-        border-color: var(--border);
-    }
-
-    .footer {
-        color: #64748B;
-        font-size: 11px;
-        text-align: center;
-        padding: 25px 0 10px 0;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
-
-
-# =========================================================
-# DATA AND MODEL LOADING
-# =========================================================
-
+# ---------------------------------------------------------------- data
 @st.cache_data
 def get_data():
-    movies = load_movies()
-    ratings = load_ratings()
-    return movies, ratings
-
+    return load_movies(), load_ratings()
 
 @st.cache_resource
-def get_recommendation_service():
+def get_service():
     return RecommendationService()
-
 
 try:
     movies, ratings = get_data()
-except Exception as error:
-    st.error(f"Unable to load project data: {error}")
+except Exception as e:
+    st.error(f"Unable to load project data: {e}")
     st.stop()
 
+NON_GENRE = {"movie_id", "title", "release_date", "video_release_date", "IMDb URL"}
+GENRES = [c for c in movies.columns if c not in NON_GENRE and pd.api.types.is_numeric_dtype(movies[c])]
 
-# =========================================================
-# SHARED HELPERS
-# =========================================================
+def year_of(title):
+    m = re.search(r"\((\d{4})\)\s*$", str(title))
+    return int(m.group(1)) if m else None
 
-GENRE_COLUMNS = [
-    column
-    for column in movies.columns
-    if column not in {
-        "movie_id",
-        "title",
-        "release_date",
-        "video_release_date",
-        "IMDb URL",
-    }
-    and pd.api.types.is_numeric_dtype(movies[column])
-]
+def genres_of(row):
+    return [g for g in GENRES if row.get(g, 0) == 1]
 
-def extract_year(title):
-    match = re.search(r"\((\d{4})\)\s*$", str(title))
-    return int(match.group(1)) if match else None
+@st.cache_data
+def movie_stats():
+    g = ratings.groupby("movie_id")["rating"].agg(avg="mean", n="count").reset_index()
+    return g
 
+STATS = movie_stats().set_index("movie_id")
 
-def get_movie_genres(row):
-    return [
-        genre
-        for genre in GENRE_COLUMNS
-        if row.get(genre, 0) == 1
-    ]
-
-
-def render_movie_card(title, genres, rank=None, year=None):
-    number = f"RECOMMENDATION #{rank}" if rank else "MOVIE"
-    genre_html = "".join(
-        f'<span class="movie-tag">{genre}</span>'
-        for genre in genres[:4]
-    )
-
-    year_text = str(year) if year else "Year unavailable"
-
-    st.markdown(
-        f"""
-        <div class="movie-card">
-            <div class="movie-number">{number}</div>
-            <div class="movie-title">{title}</div>
-            <div class="movie-meta">{year_text}</div>
-            <div style="margin-top:10px">{genre_html}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_metric(label, value, note=""):
-    st.markdown(
-        f"""
-        <div class="metric-card">
-            <div class="metric-label">{label}</div>
-            <div class="metric-value">{value}</div>
-            <div class="metric-note">{note}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_page_header(eyebrow, title, description):
-    st.markdown(
-        f"""
-        <div class="eyebrow">{eyebrow}</div>
-        <div class="hero-title">{title}</div>
-        <div class="hero-description">{description}</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-# =========================================================
-# SIDEBAR
-# =========================================================
-
-with st.sidebar:
-    st.markdown(
-        '<div class="brand">MOVIE<span>MIND</span></div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        '<div class="brand-caption">INTELLIGENT MOVIE DISCOVERY</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.divider()
-
-    page = st.radio(
-        "EXPLORE",
-        [
-            "Dashboard",
-            "Movie Discovery",
-            "Recommendations",
-            "About",
-        ],
-        label_visibility="visible",
-    )
-
-    st.divider()
-
-    st.markdown("**PROJECT INFORMATION**")
-    st.caption("Dataset: MovieLens 100K")
-    st.caption("Movies: 1,682")
-    st.caption("Recommendation: Hybrid + MMR")
-
-    st.divider()
-
-    st.caption("MOVIEMIND AI")
-    st.caption("Machine Learning Recommendation Platform")
-
-
-# =========================================================
-# DASHBOARD
-# =========================================================
-
-if page == "Dashboard":
-
-    render_page_header(
-        "YOUR PERSONAL MOVIE INTELLIGENCE",
-        'Discover Movies <span>Smarter.</span>',
-        "Explore a movie universe powered by collaborative filtering, "
-        "hybrid recommendation algorithms, and intelligent ranking.",
-    )
-
-    total_movies = movies["movie_id"].nunique()
-    total_users = ratings["user_id"].nunique()
-    total_ratings = len(ratings)
-    average_rating = ratings["rating"].mean()
-
-    columns = st.columns(4)
-
-    metrics = [
-        ("MOVIES", f"{total_movies:,}", "Available in the catalog"),
-        ("USERS", f"{total_users:,}", "Dataset user profiles"),
-        ("RATINGS", f"{total_ratings:,}", "Recorded user ratings"),
-        ("AVG. RATING", f"{average_rating:.2f}/5", "Overall dataset average"),
-    ]
-
-    for column, (label, value, note) in zip(columns, metrics):
-        with column:
-            render_metric(label, value, note)
-
-    st.markdown(
-        '<div class="section-heading">Explore MovieMind</div>',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
-        '<div class="section-description">'
-        'Everything you need to discover your next favorite movie.'
-        '</div>',
-        unsafe_allow_html=True,
-    )
-
-    left, right = st.columns(2)
-
-    with left:
-        st.markdown(
-            """
-            <div class="hero-panel">
-                <div class="eyebrow">MOVIE EXPLORATION</div>
-                <div class="hero-panel-title">Find your next favorite.</div>
-                <div class="hero-panel-text">
-                    Search the movie catalog and explore titles
-                    across different genres and release years.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("Explore Movies", key="dashboard_discovery"):
-            st.session_state["navigation"] = "Movie Discovery"
-            st.rerun()
-
-    with right:
-        st.markdown(
-            """
-            <div class="hero-panel">
-                <div class="eyebrow">PERSONALIZED DISCOVERY</div>
-                <div class="hero-panel-title">Made around your taste.</div>
-                <div class="hero-panel-text">
-                    Select a user profile and discover recommendations
-                    generated by our hybrid recommendation engine.
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("Get Recommendations", key="dashboard_recommendations"):
-            st.session_state["navigation"] = "Recommendations"
-            st.rerun()
-
-    st.markdown(
-        '<div class="section-heading">Rating Distribution</div>',
-        unsafe_allow_html=True,
-    )
-
-    rating_distribution = (
-        ratings["rating"]
-        .value_counts()
-        .sort_index()
-        .rename_axis("Rating")
-        .reset_index(name="Number of Ratings")
-    )
-
-    fig = px.bar(
-        rating_distribution,
-        x="Rating",
-        y="Number of Ratings",
-        text="Number of Ratings",
-        template="plotly_dark",
-    )
-
-    fig.update_traces(
-        marker_color="#38BDF8",
-        textposition="outside",
-    )
-
-    fig.update_layout(
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=10, r=10, t=20, b=10),
-        height=330,
-        xaxis=dict(dtick=1),
-    )
-
-    st.plotly_chart(fig, use_container_width=True)
-
-
-# =========================================================
-# MOVIE DISCOVERY
-# =========================================================
-
-elif page == "Movie Discovery":
-
-    render_page_header(
-        "EXPLORE THE CATALOG",
-        "Movie Discovery",
-        "Search, filter, and explore movies from the MovieLens collection.",
-    )
-
-    search_col, genre_col, year_col = st.columns([2, 1, 1])
-
-    with search_col:
-        search = st.text_input(
-            "Search by title",
-            placeholder="Search for a movie...",
-        )
-
-    with genre_col:
-        available_genres = sorted(GENRE_COLUMNS)
-        selected_genre = st.selectbox(
-            "Genre",
-            ["All Genres"] + available_genres,
-        )
-
-    movie_years = sorted(
-        {
-            year
-            for year in movies["title"].apply(extract_year)
-            if year is not None
-        },
-        reverse=True,
-    )
-
-    with year_col:
-        selected_year = st.selectbox(
-            "Release year",
-            ["All Years"] + movie_years,
-        )
-
-    filtered = movies.copy()
-
-    if search:
-        filtered = filtered[
-            filtered["title"].str.contains(
-                search,
-                case=False,
-                na=False,
-                regex=False,
-            )
-        ]
-
-    if selected_genre != "All Genres":
-        filtered = filtered[
-            filtered[selected_genre] == 1
-        ]
-
-    if selected_year != "All Years":
-        filtered = filtered[
-            filtered["title"].apply(extract_year) == selected_year
-        ]
-
-    st.markdown(
-        f'<div class="section-description">{len(filtered):,} movies found</div>',
-        unsafe_allow_html=True,
-    )
-
-    if filtered.empty:
-        st.info("No movies match your search. Try different filters.")
-    else:
-        page_size = 12
-        total_pages = (len(filtered) - 1) // page_size + 1
-
-        selected_page = st.selectbox(
-            "Page",
-            range(1, total_pages + 1),
-            format_func=lambda value: f"Page {value} of {total_pages}",
-        )
-
-        start = (selected_page - 1) * page_size
-        page_movies = filtered.iloc[start:start + page_size]
-
-        for start_index in range(0, len(page_movies), 3):
-            row = page_movies.iloc[start_index:start_index + 3]
-            columns = st.columns(3)
-
-            for column, (_, movie) in zip(columns, row.iterrows()):
-                with column:
-                    render_movie_card(
-                        title=movie["title"],
-                        genres=get_movie_genres(movie),
-                        year=extract_year(movie["title"]),
-                    )
-
-
-# =========================================================
-# RECOMMENDATIONS
-# =========================================================
-
-elif page == "Recommendations":
-
-    render_page_header(
-        "PERSONALIZED FOR YOU",
-        "Your Next Favorite Movie.",
-        "Choose a user profile and let MovieMind AI discover movies "
-        "based on collaborative preferences and intelligent ranking.",
-    )
-
-    st.markdown(
-        """
-        <div class="hero-panel">
-            <div class="eyebrow">HYBRID RECOMMENDATION ENGINE</div>
-            <div class="hero-panel-title">Discover beyond your watchlist.</div>
-            <div class="hero-panel-text">
-                Our system combines user-based collaborative filtering
-                with popularity ranking using Reciprocal Rank Fusion.
-                Optional MMR ranking can increase recommendation diversity.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
+# ---------------------------------------------------------------- posters (TMDB, verified by title + year)
+def _tmdb_key():
     try:
-        service = get_recommendation_service()
-        available_users = sorted(
-            service.user_item_matrix.index.astype(int).tolist()
-        )
-    except Exception as error:
-        st.error(f"Unable to initialize recommendation engine: {error}")
+        return st.secrets.get("TMDB_API_KEY")
+    except Exception:
+        return None
+
+def _clean(title):
+    t = re.sub(r"\s*\(\d{4}\)\s*$", "", str(title))
+    t = re.sub(r"\s*\([^)]*\)", "", t).strip()
+    m = re.match(r"^(.*), (The|A|An|Les|La|Le|Il|Das|Der|Die)$", t)
+    return f"{m.group(2)} {m.group(1)}" if m else t
+
+@st.cache_data(show_spinner=False, ttl=60 * 60 * 24 * 7)
+def poster_url(title):
+    key = _tmdb_key()
+    year = year_of(title)
+    if not key or not year:
+        return None
+    try:
+        r = requests.get("https://api.themoviedb.org/3/search/movie", timeout=6,
+                         params={"api_key": key, "query": _clean(title), "year": year})
+        for item in r.json().get("results", []):
+            rd = item.get("release_date", "")[:4]
+            if item.get("poster_path") and rd.isdigit() and abs(int(rd) - year) <= 1:
+                return f"https://image.tmdb.org/t/p/w342{item['poster_path']}"
+    except Exception:
+        pass
+    return None
+
+def posters_for(titles):
+    titles = list(titles)
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        return dict(zip(titles, ex.map(poster_url, titles)))
+
+# ---------------------------------------------------------------- components
+def render_movie_card(title, genres, url, rank=None, note=""):
+    t = html.escape(str(title))
+    img = (f'<img src="{url}" alt="{t}" loading="lazy">' if url
+           else f'<div class="ph">{html.escape(_clean(title)[:1].upper())}</div>')
+    badge = f'<div class="rk">#{rank}</div>' if rank else ""
+    tags = "".join(f'<span class="tag">{html.escape(g)}</span>' for g in genres[:3])
+    meta = " · ".join(x for x in [str(year_of(title) or ""), note] if x)
+    st.markdown(f'<div class="poster"><div class="img">{badge}{img}</div><div class="bd">'
+                f'<div class="t">{t}</div><div class="m">{html.escape(meta)}</div>{tags}</div></div>',
+                unsafe_allow_html=True)
+
+def rating_note(movie_id):
+    if movie_id in STATS.index:
+        r = STATS.loc[movie_id]
+        return f"★ {r['avg']:.2f} ({int(r['n'])})"
+    return ""
+
+def render_movie_grid(df, cols=5, key="g"):
+    df = df.reset_index(drop=True)
+    urls = posters_for(df["title"])
+    for i in range(0, len(df), cols):
+        cs = st.columns(cols)
+        for c, (_, m) in zip(cs, df.iloc[i:i + cols].iterrows()):
+            with c:
+                render_movie_card(m["title"], genres_of(m), urls[m["title"]], note=rating_note(m["movie_id"]))
+                if st.button("Details", key=f"{key}_{m['movie_id']}", use_container_width=True, type="secondary"):
+                    st.session_state["detail"] = int(m["movie_id"])
+                    st.rerun()
+
+def render_section_header(title, sub=""):
+    st.markdown(f'<h2 class="sec">{title}</h2><div class="sub">{sub}</div>', unsafe_allow_html=True)
+
+def render_empty_state(title, text):
+    st.markdown(f'<div class="panel" style="text-align:center"><h3>{title}</h3>'
+                f'<div class="sub" style="margin:0">{text}</div></div>', unsafe_allow_html=True)
+
+def go(page):
+    st.session_state["page"] = page
+
+def render_hero():
+    top = STATS.sort_values("n", ascending=False).head(16).index
+    wall_titles = movies[movies["movie_id"].isin(top)]["title"].tolist()
+    urls = [u for u in posters_for(wall_titles).values() if u]
+    wall = ""
+    if urls:
+        urls = (urls * 3)[:16]
+        wall = '<div class="wall">' + "".join(f'<img src="{u}" alt="">' for u in urls) + "</div>"
+    st.markdown(f'''<div class="hero">{wall}<div class="shade"></div><div class="in">
+        <div class="brand" style="margin-bottom:22px">Movie<i>Mind</i> AI</div>
+        <h1>Discover your next favorite movie.</h1>
+        <p>Explore a world of movies powered by intelligent recommendations tailored to your preferences.</p>
+        </div></div>''', unsafe_allow_html=True)
+    a, b, _ = st.columns([1, 1.5, 3])
+    a.button("Explore Movies", on_click=go, args=("Discover",), use_container_width=True, key="h1")
+    b.button("Get Personalized Recommendations", on_click=go, args=("For You",),
+             use_container_width=True, type="secondary", key="h2")
+
+def render_detail():
+    mid = st.session_state.get("detail")
+    if mid is None:
+        return
+    row = movies[movies["movie_id"] == mid]
+    if row.empty:
+        return
+    m = row.iloc[0]
+    url = poster_url(m["title"])
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    c1, c2 = st.columns([1, 3])
+    with c1:
+        if url:
+            st.image(url, use_container_width=True)
+    with c2:
+        st.markdown(f"### {m['title']}")
+        st.markdown("".join(f'<span class="tag">{html.escape(g)}</span>' for g in genres_of(m)), unsafe_allow_html=True)
+        if mid in STATS.index:
+            s = STATS.loc[mid]
+            st.markdown(f"**★ {s['avg']:.2f}** average from **{int(s['n']):,}** ratings")
+        if m.get("release_date") and str(m["release_date"]) != "nan":
+            st.caption(f"Release date: {m['release_date']}")
+        if str(m.get("IMDb URL", "")) not in ("", "nan"):
+            st.markdown(f"[View on IMDb]({m['IMDb URL']})")
+        if st.button("Close", key="close_detail", type="secondary"):
+            st.session_state["detail"] = None
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+def style_fig(fig, h=340):
+    fig.update_layout(template="plotly_dark", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                      height=h, margin=dict(l=10, r=10, t=30, b=10), font=dict(family="Inter", color="#9AA7BA"),
+                      xaxis=dict(gridcolor="rgba(255,255,255,.04)"), yaxis=dict(gridcolor="rgba(255,255,255,.06)"))
+    return fig
+
+# ---------------------------------------------------------------- navigation
+st.session_state.setdefault("page", "Home")
+st.session_state.setdefault("detail", None)
+nav_l, nav_r = st.columns([1, 3])
+nav_l.markdown('<div class="brand" style="padding-top:8px">Movie<i>Mind</i></div>', unsafe_allow_html=True)
+with nav_r:
+    page = st.radio("Navigation", PAGES, key="page", horizontal=True, label_visibility="collapsed")
+
+# ---------------------------------------------------------------- HOME
+if page == "Home":
+    render_hero()
+    stats = [(f"{movies['movie_id'].nunique():,}", "Movies"), (f"{ratings['user_id'].nunique():,}", "Users"),
+             (f"{len(ratings):,}", "Ratings"), (f"{ratings['rating'].mean():.2f}", "Average rating")]
+    for c, (v, l) in zip(st.columns(4), stats):
+        c.markdown(f'<div class="stat"><b>{v}</b><span>{l}</span></div>', unsafe_allow_html=True)
+
+    joined = movies.merge(STATS.reset_index(), on="movie_id")
+    collections = [
+        ("Popular movies", "Most rated by the community", joined.sort_values("n", ascending=False)),
+        ("Top rated", "Highest average rating, minimum 100 ratings", joined[joined["n"] >= 100].sort_values("avg", ascending=False)),
+        ("Hidden gems", "Rated 4.0 or higher with fewer than 60 ratings", joined[(joined["avg"] >= 4.0) & (joined["n"].between(10, 59))].sort_values("avg", ascending=False)),
+    ]
+    for title, sub, df in collections:
+        render_section_header(title, sub)
+        render_movie_grid(df.head(5), key=title)
+    render_detail()
+
+# ---------------------------------------------------------------- DISCOVER
+elif page == "Discover":
+    render_section_header("Discover movies", "Search the catalog and filter by genre or release year.")
+    render_detail()
+    c1, c2, c3 = st.columns([2, 1, 1])
+    q = c1.text_input("Search by title", placeholder="Try “Star Wars” or “Casablanca”")
+    g = c2.selectbox("Genre", ["All genres"] + sorted(GENRES))
+    years = sorted({y for y in movies["title"].map(year_of) if y}, reverse=True)
+    y = c3.selectbox("Release year", ["All years"] + years)
+    f = movies
+    if q:
+        f = f[f["title"].str.contains(q, case=False, na=False, regex=False)]
+    if g != "All genres":
+        f = f[f[g] == 1]
+    if y != "All years":
+        f = f[f["title"].map(year_of) == y]
+    if f.empty:
+        render_empty_state("No movies found", "Try a different title, or clear a filter.")
+    else:
+        per = 15
+        pages = (len(f) - 1) // per + 1
+        st.markdown(f'<div class="sub">{len(f):,} movies</div>', unsafe_allow_html=True)
+        n = st.number_input("Page", 1, pages, 1, key="disc_page", help=f"{pages} pages") if pages > 1 else 1
+        render_movie_grid(f.iloc[(n - 1) * per:n * per], key="disc")
+
+# ---------------------------------------------------------------- FOR YOU
+elif page == "For You":
+    render_section_header("For you", "Your recommendations combine collaborative filtering with popularity-based "
+                          "ranking to discover movies aligned with your viewing preferences.")
+    try:
+        service = get_service()
+        users = sorted(service.user_item_matrix.index.astype(int).tolist())
+    except Exception as e:
+        st.error(f"Unable to initialize the recommendation engine: {e}")
         st.stop()
 
     with st.container(border=True):
-        st.markdown("### Select your profile")
-        st.caption(
-            "Choose one of the user profiles available in the trained model."
-        )
+        c1, c2 = st.columns(2)
+        uid = c1.selectbox("User profile", users, format_func=lambda u: f"User #{u}")
+        top_n = c2.slider("Number of recommendations", 5, 20, 10)
+        div = st.toggle("Diversity optimization (MMR)", value=False)
+        lam = None
+        if div:
+            lam = st.slider("Relevance vs. diversity", 0.0, 1.0, 0.7, 0.1,
+                            help="Higher favors relevance. Lower favors genre diversity.")
+            st.caption("MMR helps balance relevance and genre diversity, introducing a broader selection of movies.")
+        go_btn = st.button("Generate recommendations", use_container_width=True)
 
-        selected_user = st.selectbox(
-            "User profile",
-            options=available_users,
-            format_func=lambda user_id: f"User #{user_id}",
-        )
-
-        diversity_enabled = st.toggle(
-            "Enable recommendation diversity (MMR)",
-            value=False,
-        )
-
-        lambda_param = 1.0
-
-        if diversity_enabled:
-            lambda_param = st.slider(
-                "Relevance vs. Diversity",
-                min_value=0.0,
-                max_value=1.0,
-                value=0.7,
-                step=0.1,
-                help=(
-                    "Higher values prioritize relevance. "
-                    "Lower values prioritize genre diversity."
-                ),
-            )
-
-        generate = st.button(
-            "Generate My Recommendations",
-            type="primary",
-            use_container_width=True,
-        )
-
-    if generate:
+    if go_btn:
         try:
-            with st.spinner("Analyzing preferences and generating recommendations..."):
-                recommendations = service.recommend(
-                    user_id=int(selected_user),
-                    top_n=10,
-                    diversity=diversity_enabled,
-                    lambda_param=lambda_param if diversity_enabled else None,
-                )
-
-            if recommendations.empty:
+            with st.spinner("Analyzing preferences..."):
+                rec = service.recommend(user_id=int(uid), top_n=top_n, diversity=div, lambda_param=lam)
+            if rec.empty:
                 st.warning("No recommendations are available for this profile.")
             else:
-                st.session_state["recommendation_results"] = recommendations
-                st.session_state["recommendation_user"] = selected_user
-                st.session_state["recommendation_diversity"] = diversity_enabled
+                st.session_state["rec"] = (rec, uid, div)
+        except Exception as e:
+            st.error(f"Recommendation generation failed: {e}")
 
-        except Exception as error:
-            st.error(f"Recommendation generation failed: {error}")
+    if "rec" in st.session_state:
+        rec, ruid, rdiv = st.session_state["rec"]
+        render_section_header(f"Picked for User #{ruid}", "MMR diversity enabled." if rdiv else "Standard hybrid ranking.")
+        rec = rec.merge(movies[["movie_id"] + GENRES], on="movie_id", how="left", suffixes=("", "_m"))
+        urls = posters_for(rec["title"])
+        score_col = next((c for c in ("score", "rrf_score", "hybrid_score", "final_score") if c in rec.columns), None)
+        for i in range(0, len(rec), 5):
+            for c, (j, r) in zip(st.columns(5), rec.iloc[i:i + 5].iterrows()):
+                with c:
+                    note = f"score {r[score_col]:.3f}" if score_col else ""
+                    render_movie_card(r["title"], genres_of(r), urls[r["title"]], rank=int(j) + 1, note=note)
+        st.caption("Recommendations come from the trained MovieLens model and are not guarantees of preference.")
+    else:
+        render_empty_state("No recommendations yet", "Pick a profile above and select Generate recommendations.")
 
-    if "recommendation_results" in st.session_state:
-        results = st.session_state["recommendation_results"]
-        result_user = st.session_state["recommendation_user"]
-        result_diversity = st.session_state["recommendation_diversity"]
+# ---------------------------------------------------------------- ANALYTICS
+elif page == "Analytics":
+    render_section_header("Analytics", "Dataset insights and the temporal evaluation of the hybrid model.")
+    a, b = st.columns(2)
+    rd = ratings["rating"].value_counts().sort_index().reset_index()
+    rd.columns = ["Rating", "Ratings"]
+    a.plotly_chart(style_fig(px.bar(rd, x="Rating", y="Ratings", title="Rating distribution",
+                                    color_discrete_sequence=["#8B7CFF"])), use_container_width=True)
+    gd = pd.Series({g: int(movies[g].sum()) for g in GENRES}).sort_values().reset_index()
+    gd.columns = ["Genre", "Movies"]
+    b.plotly_chart(style_fig(px.bar(gd, x="Movies", y="Genre", orientation="h", title="Movies per genre",
+                                    color_discrete_sequence=["#42D6C5"]), 420), use_container_width=True)
+    render_section_header("Recommendation evaluation", "Temporal test results for the hybrid model "
+                          "(user weight 0.2, popularity weight 0.8, RRF constant 60).")
+    ev = pd.DataFrame({"Metric": ["Precision", "Recall", "MAP", "NDCG"],
+                       "@5": [0.1415, 0.0222, 0.1029, 0.1515], "@10": [0.1915, 0.0659, 0.1055, 0.1889]})
+    t, ch = st.columns([1, 2])
+    t.dataframe(ev, hide_index=True, use_container_width=True)
+    long = ev.melt("Metric", var_name="Cutoff", value_name="Score")
+    ch.plotly_chart(style_fig(px.bar(long, x="Metric", y="Score", color="Cutoff", barmode="group",
+                                     color_discrete_sequence=["#8B7CFF", "#F2C879"])), use_container_width=True)
+    st.caption("Diversity optimization trades some relevance for genre variety. It does not improve every ranking metric.")
 
-        st.divider()
-
-        st.markdown(
-            '<div class="section-heading">Your Recommended Movies</div>',
-            unsafe_allow_html=True,
-        )
-
-        st.markdown(
-            f'<div class="section-description">'
-            f'Recommendations generated for User #{result_user}. '
-            f'{"MMR diversity enabled." if result_diversity else "Standard hybrid ranking."}'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-
-        extra_columns = [
-            column
-            for column in GENRE_COLUMNS
-            if column in movies.columns
-        ]
-
-        results = results.merge(
-            movies[["movie_id"] + extra_columns],
-            on="movie_id",
-            how="left",
-        )
-
-        for start_index in range(0, len(results), 2):
-            row = results.iloc[start_index:start_index + 2]
-            columns = st.columns(2)
-
-            for column, (_, recommendation) in zip(columns, row.iterrows()):
-                with column:
-                    genres = get_movie_genres(recommendation)
-                    render_movie_card(
-                        title=recommendation["title"],
-                        genres=genres,
-                        rank=int(recommendation.get("mmr_rank", start_index + 1)),
-                        year=extract_year(recommendation["title"]),
-                    )
-
-        st.caption(
-            "Recommendations are generated from the trained MovieLens model. "
-            "They are not guarantees of personal preference."
-        )
-
-
-# =========================================================
-# ABOUT
-# =========================================================
-
-elif page == "About":
-
-    render_page_header(
-        "THE TECHNOLOGY BEHIND THE EXPERIENCE",
-        "About MovieMind AI",
-        "A machine learning recommendation platform built to make "
-        "movie discovery more intelligent and personalized.",
-    )
-
-    st.markdown(
-        """
-        <div class="hero-panel">
-            <div class="eyebrow">PROJECT OVERVIEW</div>
-            <div class="hero-panel-title">Intelligent Movie Discovery</div>
-            <div class="hero-panel-text">
-                MovieMind AI uses the MovieLens 100K dataset to explore
-                personalized recommendation strategies. The platform
-                combines collaborative filtering, popularity-based ranking,
-                and recommendation diversity techniques.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.markdown("### Recommendation Architecture")
-        st.markdown(
-            """
-            - User-Based Collaborative Filtering
-            - Popularity-Based Recommendation
-            - Reciprocal Rank Fusion (RRF)
-            - Maximum Marginal Relevance (MMR)
-            """
-        )
-
-    with col2:
-        st.markdown("### Technology Stack")
-        st.markdown(
-            """
-            - Python
-            - Pandas and NumPy
-            - Scikit-learn
-            - Streamlit
-            - Plotly
-            """
-        )
-
-    st.markdown("### Dataset")
-    st.write(
-        "MovieLens 100K — 100,000 ratings from 943 users "
-        "across 1,682 movies."
-    )
-
-
-# =========================================================
-# FOOTER
-# =========================================================
-
-st.markdown(
-    """
-    <div class="footer">
-        MOVIEMIND AI &nbsp; | &nbsp; INTELLIGENT MOVIE DISCOVERY
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
+# ---------------------------------------------------------------- ABOUT
+else:
+    render_section_header("About MovieMind AI", "A hybrid movie recommendation system built on MovieLens 100K.")
+    st.markdown('<div class="panel"><div class="flow"><div>MovieLens dataset</div><span>→</span>'
+                '<div>Data processing</div><span>→</span><div>Collaborative filtering + popularity</div><span>→</span>'
+                '<div>Reciprocal Rank Fusion</div><span>→</span><div>MMR re-ranking</div><span>→</span>'
+                '<div>Personalized recommendations</div></div></div>', unsafe_allow_html=True)
+    render_section_header("Technology")
+    st.markdown("".join(f'<span class="badge">{x}</span>' for x in
+                        ["Python", "Pandas", "NumPy", "Scikit-learn", "Streamlit", "Plotly", "Git", "GitHub"]),
+                unsafe_allow_html=True)
+    render_section_header("Project")
+    st.markdown(f"**Author:** Abdelrahman Akl  \n[GitHub repository]({GITHUB}) · [Live demo]({LIVE}) · "
+                f"[GitHub profile](https://github.com/AbdelrhmanAkl) · [LinkedIn]({LINKEDIN})")
+    st.caption("Movie posters and metadata are provided by TMDB. This product uses the TMDB API but is not endorsed or certified by TMDB.")
