@@ -1,0 +1,55 @@
+{
+  "project": "MovieMind AI",
+  "dataset": "MovieLens 100K",
+  "rating_scale": [
+    1,
+    5
+  ],
+  "relevance_threshold": 4,
+  "random_evaluation": {
+    "strategy": "Per-user random split",
+    "training_ratio": 0.8,
+    "validation_ratio": 0.2,
+    "test_used_for_tuning": false
+  },
+  "temporal_evaluation": {
+    "strategy": "Global chronological split",
+    "training_ratio": 0.7,
+    "validation_ratio": 0.15,
+    "test_ratio": 0.15,
+    "final_training": "temporal_train + temporal_validation",
+    "test_used_for_tuning": false
+  },
+  "temporal_hybrid": {
+    "user_based_weight": 0.2,
+    "popularity_weight": 0.8,
+    "rrf_constant": 60,
+    "minimum_popularity_ratings": 20
+  },
+  "svd_experiment": {
+    "library": "scikit-surprise",
+    "best_parameters": {
+      "n_factors": 50,
+      "n_epochs": 30,
+      "lr_all": 0.005,
+      "reg_all": 0.05
+    },
+    "best_cross_validation_rmse": 0.953993
+  },
+  "mmr": {
+    "similarity": "Genre Jaccard similarity",
+    "lambda_values": [
+      0.3,
+      0.5,
+      0.7,
+      1.0
+    ],
+    "default_lambda": 1.0
+  },
+  "notes": [
+    "Random and temporal evaluation protocols are separate.",
+    "Temporal test is excluded from model selection.",
+    "MMR introduces a relevance-diversity tradeoff.",
+    "Lambda 1.0 preserves the baseline ranking."
+  ]
+}

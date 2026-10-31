@@ -1,0 +1,2 @@
+model,users,catalog_size,unique_recommended_movies,catalog_coverage,intra_list_diversity,mean_novelty_bits
+Temporal Hybrid,212,1682,49,0.029131985731272295,0.8259458919836278,8.744774799633973
