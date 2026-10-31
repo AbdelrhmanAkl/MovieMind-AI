@@ -1,42 +1,77 @@
-# MovieMind AI
-### Hybrid Movie Recommendation System with Personalized Ranking & Diversity Optimization
+<div align="center">
+
+# 🎬 MovieMind AI
+
+**A hybrid movie recommender with personalized ranking and diversity optimization**
+
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Streamlit-8B7CFF?style=for-the-badge&logo=streamlit&logoColor=white)](https://moviemind-ai-0.streamlit.app/)
+[![Python](https://img.shields.io/badge/Python-3.13-42D6C5?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/Tests-7_passed-F2C879?style=for-the-badge&logo=pytest&logoColor=white)](#testing)
+
+[**Live Demo**](https://moviemind-ai-0.streamlit.app/) · [**Architecture**](#architecture) · [**Evaluation**](#evaluation-results) · [**Run Locally**](#getting-started)
+
+</div>
 
 <p align="center">
-  <a href="https://moviemind-ai-0.streamlit.app/"><strong>Live Demo</strong></a>
-  &nbsp; | &nbsp;
-  <a href="https://github.com/AbdelrhmanAkl/MovieMind-AI"><strong>GitHub Repository</strong></a>
+  <img src="docs/screenshots/home.png" alt="MovieMind AI home page" width="900">
 </p>
+
+---
+
+## Table of Contents
+
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Application Tour](#application-tour)
+- [Architecture](#architecture)
+- [Dataset](#dataset)
+- [Evaluation Methodology](#evaluation-methodology)
+- [Evaluation Results](#evaluation-results)
+- [Tech Stack](#tech-stack)
+- [Project Structure](#project-structure)
+- [Getting Started](#getting-started)
+- [Movie Posters (TMDB)](#movie-posters-tmdb)
+- [Testing](#testing)
+- [Limitations and Roadmap](#limitations-and-roadmap)
+- [Author](#author)
 
 ---
 
 ## Overview
 
-**MovieMind AI** is an intelligent movie recommendation system designed to deliver personalized movie suggestions by combining collaborative filtering, popularity-based ranking, and diversity-aware recommendation techniques.
+MovieMind AI recommends movies by combining three signals: what similar users liked, what the whole community rates highly, and how varied the final list is.
 
-Built using the **MovieLens 100K dataset**, the system implements a hybrid recommendation pipeline that combines user preference signals with global movie popularity through **Reciprocal Rank Fusion (RRF)**. It also incorporates **Maximal Marginal Relevance (MMR)** to balance recommendation relevance with genre diversity.
+It is built on **MovieLens 100K**. User-based collaborative filtering and popularity ranking are merged with **Reciprocal Rank Fusion (RRF)**, then optionally re-ranked with **Maximal Marginal Relevance (MMR)** to balance relevance against genre diversity.
 
-The project focuses not only on generating recommendations, but also on evaluating them under a chronological data-splitting strategy to better simulate real-world recommendation scenarios.
-
-## Live Application
-
-Explore MovieMind AI:
-
-**[Launch MovieMind AI](https://moviemind-ai-0.streamlit.app/)**
+The project also puts weight on honest evaluation: models are tested on a **chronological split**, so recommendations are never scored using future interactions.
 
 ## Key Features
 
-- **Hybrid Recommendation Engine:** Combines user-based collaborative filtering and popularity-based recommendations.
-- **Reciprocal Rank Fusion:** Integrates multiple recommendation rankings using weighted reciprocal rank fusion.
-- **Personalized Discovery:** Generates recommendations based on historical user interactions.
-- **Diversity Optimization:** Applies MMR to reduce genre similarity among recommended movies.
-- **Adjustable Diversity:** Allows experimentation with the relevance-diversity trade-off through the MMR lambda parameter.
-- **Movie Exploration:** Browse and explore movies from the MovieLens catalog.
-- **Interactive Dashboard:** Provides an accessible interface for exploring recommendation results and dataset insights.
-- **Comprehensive Evaluation:** Includes ranking metrics, temporal validation, model comparisons, and recommendation quality analysis.
+| | Feature | Description |
+|---|---|---|
+| 🎯 | **Hybrid engine** | User-based collaborative filtering plus popularity ranking, merged with weighted RRF |
+| 🌈 | **Diversity control** | MMR re-ranking with an adjustable relevance-versus-diversity slider |
+| 🖼️ | **Poster-rich interface** | Real movie posters, hero collage, and detail view for every title |
+| 🔎 | **Discovery** | Search by title, filter by genre and release year, browse by collection |
+| 📊 | **Analytics** | Interactive Plotly charts for ratings, genres, and model evaluation |
+| ✅ | **Rigorous evaluation** | Temporal validation, ranking metrics, and a diversity trade-off analysis |
 
-## Recommendation Architecture
+## Application Tour
 
-MovieMind AI follows a hybrid recommendation pipeline:
+| Page | What it does |
+|---|---|
+| **Home** | Cinematic hero, dataset statistics, and Popular, Top Rated, and Hidden Gems collections |
+| **Discover** | Search and filter the full catalog, with a detail panel per movie |
+| **For You** | Pick a user profile, choose how many recommendations, toggle MMR, and generate ranked results |
+| **Analytics** | Rating distribution, genre breakdown, and the temporal test metrics |
+| **About** | Architecture overview, technology stack, and project links |
+
+<p align="center">
+  <img src="docs/screenshots/for-you.png" alt="Personalized recommendations" width="440">
+  <img src="docs/screenshots/discover.png" alt="Movie discovery" width="440">
+</p>
+
+## Architecture
 
 ```text
                 MovieLens 100K Dataset
@@ -56,8 +91,7 @@ MovieMind AI follows a hybrid recommendation pipeline:
              +------------+------------+
                           |
                           v
-              Reciprocal Rank Fusion
-                    (RRF)
+              Reciprocal Rank Fusion (RRF)
                           |
                           v
                Hybrid Candidate Ranking
@@ -69,71 +103,41 @@ MovieMind AI follows a hybrid recommendation pipeline:
                Personalized Top-N Movies
 ```
 
-### Recommendation Components
+### Components
 
-**1. User-Based Collaborative Filtering**
+**User-based collaborative filtering** finds users with similar rating patterns and uses their preferences to propose candidates.
 
-Identifies users with similar rating patterns and uses their preferences to generate candidate movie recommendations.
+**Popularity ranking** scores movies with a weighted popularity measure, which complements the personalized signal.
 
-**2. Popularity-Based Recommendation**
+**Reciprocal Rank Fusion** merges both rankings. The temporal hybrid configuration uses:
 
-Ranks movies using a weighted popularity score, providing a complementary source of recommendations.
+| Parameter | Value |
+|---|---:|
+| User-based weight | 0.2 |
+| Popularity weight | 0.8 |
+| RRF constant | 60 |
 
-**3. Reciprocal Rank Fusion (RRF)**
-
-Combines the collaborative filtering and popularity rankings using weighted reciprocal rank fusion.
-
-The temporal hybrid configuration uses:
-
-- User-based weight: `0.2`
-- Popularity weight: `0.8`
-- RRF constant: `60`
-
-**4. Maximal Marginal Relevance (MMR)**
-
-Re-ranks candidate movies by balancing recommendation relevance and genre diversity.
-
-The lambda parameter controls the trade-off:
-
-- Higher lambda: prioritizes recommendation relevance.
-- Lower lambda: encourages greater diversity.
+**Maximal Marginal Relevance** re-ranks candidates using genre similarity. A higher lambda favors relevance, a lower lambda favors diversity. The default is set in `config/model_config.json`.
 
 ## Dataset
 
-The project uses the **MovieLens 100K dataset**.
+[MovieLens 100K](https://grouplens.org/datasets/movielens/100k/) from GroupLens.
 
-| Dataset Property | Value |
+| Property | Value |
 |---|---:|
-| Total Ratings | 100,000 |
-| Unique Users | 943 |
+| Ratings | 100,000 |
+| Users | 943 |
 | Movies | 1,682 |
-| Average Rating | 3.53 |
-| Rating Scale | 1–5 |
+| Average rating | 3.53 |
+| Rating scale | 1 to 5 |
 
-### Data Preparation
+MovieLens users are anonymous. The names shown in the interface are display aliases generated from the user ID, and each profile's taste label is computed from that user's real ratings of 4 stars and above.
 
-- Loaded and inspected user ratings and movie metadata.
-- Checked duplicate user-movie interactions.
-- Analyzed rating distributions and interaction sparsity.
-- Constructed user-item interaction matrices.
-- Prepared movie genre representations for diversity calculations.
-- Generated recommendation artifacts for application inference.
+## Evaluation Methodology
 
-Dataset source: [MovieLens 100K – GroupLens](https://grouplens.org/datasets/movielens/100k/)
+**Random per-user split.** An 80/20 split per user, used for baselines and initial analysis.
 
-## Experimental Methodology
-
-To evaluate the system under realistic conditions, the project uses two evaluation strategies.
-
-### 1. Random Per-User Split
-
-Ratings are split per user into training and testing sets using an 80/20 strategy.
-
-This experiment is used for baseline comparisons and initial recommendation analysis.
-
-### 2. Chronological Temporal Split
-
-Ratings are globally sorted by timestamp and divided into:
+**Chronological temporal split.** All ratings are sorted by timestamp and divided into:
 
 | Split | Interactions |
 |---|---:|
@@ -141,15 +145,11 @@ Ratings are globally sorted by timestamp and divided into:
 | Validation | 14,999 |
 | Testing | 15,000 |
 
-The final hybrid model is trained using the training and validation interactions, then evaluated on the held-out temporal test set.
-
-This approach helps reduce information leakage from future interactions into historical recommendations.
+The final hybrid model is trained on training plus validation, then scored on the held-out test period. This limits leakage from future interactions. A movie counts as relevant when its rating is **4 or higher**.
 
 ## Evaluation Results
 
-### Final Temporal Test Performance
-
-The following results were obtained from the final temporal test evaluation.
+### Final temporal test performance
 
 | Metric | @5 | @10 |
 |---|---:|---:|
@@ -158,212 +158,127 @@ The following results were obtained from the final temporal test evaluation.
 | MAP | 0.1029 | 0.1055 |
 | NDCG | 0.1515 | 0.1889 |
 
-The evaluation uses relevance defined as a rating of **4 or higher**.
+### Relevance versus diversity (MMR lambda)
 
-### Recommendation Diversity Analysis
-
-MMR provides an adjustable trade-off between ranking quality and recommendation diversity.
-
-The following results compare different MMR lambda values on the temporal test evaluation:
-
-| Lambda | Precision@10 | NDCG@10 | Catalog Coverage | Intra-list Diversity |
+| Lambda | Precision@10 | NDCG@10 | Catalog coverage | Intra-list diversity |
 |---:|---:|---:|---:|---:|
 | 1.0 | 0.1915 | 0.1889 | 2.91% | 0.8259 |
 | 0.7 | 0.1642 | 0.1658 | 4.10% | 0.9260 |
 | 0.5 | 0.1486 | 0.1509 | 4.34% | 0.9389 |
 | 0.3 | 0.1387 | 0.1429 | 5.17% | 0.9514 |
 
-**Key Observation**
+Lowering lambda raises coverage and intra-list diversity at the cost of ranking accuracy. MMR is a deliberate trade-off, not a free improvement.
 
-Reducing lambda increases catalog coverage and intra-list diversity, while decreasing ranking performance.
+### Model comparison
 
-This demonstrates the practical trade-off between recommending highly relevant movies and exposing users to a broader range of genres.
+An SVD collaborative filtering model (Surprise) was also evaluated. The best grid-search configuration was 50 factors, 30 epochs, learning rate 0.005, and regularization 0.05, with a cross-validation RMSE of 0.9540.
 
-## Model Comparison
-
-The project also evaluates a Singular Value Decomposition (SVD) collaborative filtering model using the Surprise library during experimentation.
-
-The best grid-search configuration was:
-
-| Parameter | Value |
-|---|---:|
-| Number of Factors | 50 |
-| Epochs | 30 |
-| Learning Rate | 0.005 |
-| Regularization | 0.05 |
-| Cross-validation RMSE | 0.9540 |
-
-The experiments also compare SVD and hybrid recommendations under a realistic full-catalog evaluation setup.
-
-## Technology Stack
+## Tech Stack
 
 | Category | Technologies |
 |---|---|
-| Programming Language | Python |
-| Data Processing | Pandas, NumPy |
-| Machine Learning | Scikit-learn |
-| Recommendation Techniques | Collaborative Filtering, RRF, MMR, SVD |
-| Data Storage | Parquet, CSV, NumPy |
+| Language | Python |
+| Data | Pandas, NumPy |
+| Machine learning | Scikit-learn, Surprise (experiments) |
+| Techniques | Collaborative filtering, RRF, MMR, SVD |
+| Storage | Parquet, CSV, NumPy |
 | Visualization | Plotly |
-| Web Application | Streamlit |
+| Web app | Streamlit |
+| Posters | TMDB API, Wikipedia (fallback) |
 | Testing | Pytest |
-| Version Control | Git, GitHub |
-| Deployment | Streamlit Community Cloud |
+| Tooling | Git, GitHub, Streamlit Community Cloud |
 
 ## Project Structure
 
 ```text
 MovieMind-AI/
-│
-├── app.py
+├── app.py                      # Streamlit application
 ├── requirements.txt
-├── README.md
-├── .gitignore
-├── .env.example
-├── project_audit.csv
-│
+├── .streamlit/
+│   ├── config.toml             # Theme
+│   └── secrets.toml            # Local secrets (not committed)
 ├── artifacts/
-│   ├── hybrid/
-│   │   ├── id_mappings.json
-│   │   ├── popularity_model.csv
-│   │   ├── user_item_matrix.parquet
-│   │   └── user_similarity.npy
-│   │
-│   └── mmr/
-│       ├── genre_id_to_index.json
-│       ├── genre_similarity.npy
-│       ├── movie_genres.csv
-│       └── mmr_rankings.json
-│
-├── config/
-│   └── model_config.json
-│
-├── data/
-│   └── raw/
-│       ├── movies.csv
-│       └── ratings.csv
-│
-├── evaluation/
-│   ├── final_hybrid_test_metrics.csv
-│   ├── hybrid_realistic_metrics.csv
-│   ├── hybrid_weight_optimization.csv
-│   ├── mmr_temporal_test_results.csv
-│   ├── random_results.csv
-│   ├── random_weight_optimization.csv
-│   ├── svd_realistic_metrics.csv
-│   ├── svd_tuning_results.csv
-│   ├── svd_validation_metrics.csv
-│   ├── temporal_final_metrics.csv
-│   ├── temporal_final_test_metrics.csv
-│   ├── temporal_quality_metrics.csv
-│   └── temporal_weight_optimization.csv
-│
+│   ├── hybrid/                 # User-item matrix, similarity, popularity
+│   └── mmr/                    # Genre similarity and MMR data
+├── config/model_config.json
+├── data/raw/                   # movies.csv, ratings.csv
+├── docs/screenshots/           # README images
+├── evaluation/                 # Metric CSVs for every experiment
 ├── notebooks/
-│   └── MovieMind_AI_Recommendation_System.ipynb
-│
-├── outputs/
-│
-├── src/
-│   └── moviemind/
-│       ├── data/
-│       ├── evaluation/
-│       ├── recommenders/
-│       ├── services/
-│       └── utils/
-│
+├── src/moviemind/
+│   ├── data/
+│   ├── evaluation/
+│   ├── recommenders/
+│   ├── services/
+│   └── utils/
 └── tests/
-    ├── test_data_loader.py
-    └── test_recommenders.py
 ```
 
-## Installation & Setup
+## Getting Started
 
-### Prerequisites
-
-- Python 3.13
-- Git
-
-### 1. Clone the Repository
+**Prerequisites:** Python 3.13 and Git.
 
 ```bash
 git clone https://github.com/AbdelrhmanAkl/MovieMind-AI.git
 cd MovieMind-AI
-```
 
-### 2. Create a Virtual Environment
-
-```bash
 python -m venv .venv
-```
+.\.venv\Scripts\Activate.ps1          # Windows PowerShell
+# source .venv/bin/activate           # Linux / macOS
 
-### 3. Activate the Environment
-
-**Windows PowerShell:**
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-**Linux / macOS:**
-
-```bash
-source .venv/bin/activate
-```
-
-### 4. Install Dependencies
-
-```bash
 pip install -r requirements.txt
-```
-
-### 5. Run the Application
-
-```bash
 streamlit run app.py
 ```
 
-The application will be available locally at:
+The app opens at `http://localhost:8501`.
 
-```text
-http://localhost:8501
+## Movie Posters (TMDB)
+
+Posters load from [TMDB](https://www.themoviedb.org/) when an API key is configured, and fall back to the film's Wikipedia image otherwise. A poster is shown only when the title and release year match. If none is found, a placeholder is displayed.
+
+1. Create a free key at [themoviedb.org](https://www.themoviedb.org/settings/api).
+2. Add it as a secret.
+
+**Locally**, in `.streamlit/secrets.toml`:
+
+```toml
+TMDB_API_KEY = "your_api_key"
 ```
 
+**On Streamlit Community Cloud**, open *Manage app → Settings → Secrets* and paste the same line.
+
+Never commit `secrets.toml`. Make sure it is listed in `.gitignore`.
+
+> This product uses the TMDB API but is not endorsed or certified by TMDB.
+
 ## Testing
-
-The project includes automated tests for the recommendation components and recommendation service.
-
-Run the test suite:
 
 ```bash
 python -m pytest -v
 ```
 
-Current test status:
+Current status: `7 passed`.
 
-```text
-7 passed
-```
+## Limitations and Roadmap
 
-## Limitations & Future Improvements
-
-Potential areas for further development include:
-
-- Improving long-tail movie discovery and catalog coverage.
-- Exploring additional hybrid weighting strategies.
-- Enhancing cold-start recommendations for new users.
-- Incorporating richer movie metadata and content-based signals.
-- Evaluating additional ranking and diversity metrics.
-- Adding user feedback to support more adaptive recommendations.
+- Improve long-tail discovery and catalog coverage.
+- Explore additional hybrid weighting strategies.
+- Add cold-start handling for new users.
+- Bring in richer movie metadata and content-based signals.
+- Evaluate more ranking and diversity metrics.
+- Collect user feedback for adaptive recommendations.
 
 ## Author
 
 **Abdelrahman Akl**
+AI Engineer · Machine Learning · Deep Learning · Agentic AI
 
-AI Engineer | Machine Learning | Deep Learning | Agentic AI
-
-- GitHub: [@AbdelrhmanAkl](https://github.com/AbdelrhmanAkl)
-- LinkedIn: [linkedin.com/in/abdelrahmanakl](https://www.linkedin.com/in/abdelrahmanakl/)
+[GitHub](https://github.com/AbdelrhmanAkl) · [LinkedIn](https://www.linkedin.com/in/abdelrahmanakl/)
 
 ---
 
-*MovieMind AI — Smarter Recommendations. Better Movie Discovery.*
+<div align="center">
+
+*MovieMind AI: smarter recommendations, better movie discovery.*
+
+</div>
