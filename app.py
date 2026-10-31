@@ -77,6 +77,11 @@ div.stButton>button:hover{background:#A094FF;color:#0B0820}
 div.stButton>button[kind="secondary"]{background:var(--elev);color:var(--tx);border:1px solid var(--bd)}
 div[data-baseweb="select"]>div,div[data-baseweb="input"]>div{background:var(--bg2)!important;border-color:var(--bd)!important;border-radius:11px}
 a{color:var(--b)!important}
+div[data-baseweb="popover"] ul,div[data-baseweb="menu"]{background:var(--elev)!important}
+div[data-baseweb="popover"] li,div[data-baseweb="menu"] li{color:var(--tx)!important;background:transparent!important}
+div[data-baseweb="popover"] li:hover,div[data-baseweb="popover"] li[aria-selected="true"]{background:rgba(139,124,255,.18)!important}
+div[data-baseweb="slider"] div[role="slider"]{background:var(--a)!important;box-shadow:none!important}
+div[data-testid="stSliderThumbValue"]{color:var(--a)!important}
 @media(max-width:760px){.hero .in{padding:36px 22px}.hero .wall{grid-template-columns:repeat(4,1fr)}}
 </style>
 """, unsafe_allow_html=True)
@@ -112,6 +117,24 @@ def movie_stats():
     return g
 
 STATS = movie_stats().set_index("movie_id")
+
+@st.cache_data
+def profile_labels():
+    """Taste label per user, computed from the real ratings (4 stars and above)."""
+    gcols = [g for g in GENRES if g.lower() != "unknown"]
+    liked = ratings[ratings["rating"] >= 4][["user_id", "movie_id"]]
+    top = liked.merge(movies[["movie_id"] + gcols], on="movie_id").groupby("user_id")[gcols].sum()
+    out = {}
+    for u, row in top.iterrows():
+        names = [g for g, v in row.sort_values(ascending=False).head(2).items() if v > 0]
+        out[int(u)] = " & ".join(names)
+    return out
+
+PROFILES = profile_labels()
+
+def user_label(u):
+    t = PROFILES.get(int(u))
+    return f"User #{u} · {t} fan" if t else f"User #{u}"
 
 # ---------------------------------------------------------------- posters (TMDB, verified by title + year)
 def _tmdb_key():
@@ -306,7 +329,7 @@ elif page == "For You":
 
     with st.container(border=True):
         c1, c2 = st.columns(2)
-        uid = c1.selectbox("User profile", users, format_func=lambda u: f"User #{u}")
+        uid = c1.selectbox("User profile", users, format_func=user_label)
         top_n = c2.slider("Number of recommendations", 5, 20, 10)
         div = st.toggle("Diversity optimization (MMR)", value=False)
         lam = None
