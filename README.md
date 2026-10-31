@@ -12,9 +12,11 @@
 
 </div>
 
+<!-- Add docs/screenshots/*.png, then remove these comment markers
 <p align="center">
   <img src="docs/screenshots/home.png" alt="MovieMind AI home page" width="900">
 </p>
+-->
 
 ---
 
@@ -66,41 +68,26 @@ The project also puts weight on honest evaluation: models are tested on a **chro
 | **Analytics** | Rating distribution, genre breakdown, and the temporal test metrics |
 | **About** | Architecture overview, technology stack, and project links |
 
+<!--
 <p align="center">
   <img src="docs/screenshots/for-you.png" alt="Personalized recommendations" width="440">
   <img src="docs/screenshots/discover.png" alt="Movie discovery" width="440">
 </p>
+-->
 
 ## Architecture
 
-```text
-                MovieLens 100K Dataset
-                          |
-                          v
-                Data Preprocessing
-                          |
-                          v
-                User-Item Interaction Matrix
-                          |
-             +------------+------------+
-             |                         |
-             v                         v
-     User-Based CF              Popularity-Based
-     Recommendations            Recommendations
-             |                         |
-             +------------+------------+
-                          |
-                          v
-              Reciprocal Rank Fusion (RRF)
-                          |
-                          v
-               Hybrid Candidate Ranking
-                          |
-                          v
-               MMR Diversity Re-ranking
-                          |
-                          v
-               Personalized Top-N Movies
+```mermaid
+flowchart TD
+    A[MovieLens 100K Dataset] --> B[Data Preprocessing]
+    B --> C[User-Item Interaction Matrix]
+    C --> D[User-Based CF<br/>Recommendations]
+    C --> E[Popularity-Based<br/>Recommendations]
+    D --> F[Reciprocal Rank Fusion]
+    E --> F
+    F --> G[Hybrid Candidate Ranking]
+    G --> H[MMR Diversity Re-ranking]
+    H --> I[Personalized Top-N Movies]
 ```
 
 ### Components
