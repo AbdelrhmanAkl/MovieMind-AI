@@ -77,6 +77,11 @@ div.stButton>button:hover{background:#A094FF;color:#0B0820}
 div.stButton>button[kind="secondary"]{background:var(--elev);color:var(--tx);border:1px solid var(--bd)}
 div[data-baseweb="select"]>div,div[data-baseweb="input"]>div{background:var(--bg2)!important;border-color:var(--bd)!important;border-radius:11px}
 a{color:var(--b)!important}
+div[data-testid="stRadio"] label[data-baseweb="radio"]>div:first-child,div[data-testid="stRadio"] label>span:first-child{display:none!important}
+button[data-testid="stBaseButton-primary"]{background:var(--a)!important;color:#0B0820!important;border:0!important}
+button[data-testid="stBaseButton-primary"]:hover{background:#A094FF!important}
+button[data-testid="stBaseButton-secondary"]{background:var(--elev)!important;color:var(--tx)!important;border:1px solid var(--bd)!important}
+button[data-testid="stBaseButton-secondary"]:hover{border-color:var(--a)!important}
 div[data-baseweb="popover"] ul,div[data-baseweb="menu"]{background:var(--elev)!important}
 div[data-baseweb="popover"] li,div[data-baseweb="menu"] li{color:var(--tx)!important;background:transparent!important}
 div[data-baseweb="popover"] li:hover,div[data-baseweb="popover"] li[aria-selected="true"]{background:rgba(139,124,255,.18)!important}
@@ -210,8 +215,13 @@ def posters_for(titles):
         return dict(zip(titles, ex.map(poster_url, titles)))
 
 # ---------------------------------------------------------------- components
+def display_title(title):
+    t = re.sub(r"\s*\(\d{4}\)\s*$", "", str(title))
+    m = re.match(r"^(.*?), (The|A|An|Les|La|Le|Il|Das|Der|Die)(\s\(.*\))?$", t)
+    return f"{m.group(2)} {m.group(1)}{m.group(3) or ''}" if m else t
+
 def render_movie_card(title, genres, url, rank=None, note=""):
-    t = html.escape(str(title))
+    t = html.escape(display_title(title))
     img = (f'<img src="{url}" alt="{t}" loading="lazy">' if url
            else f'<div class="ph">{html.escape(_clean(title)[:1].upper())}</div>')
     badge = f'<div class="rk">#{rank}</div>' if rank else ""
@@ -263,7 +273,7 @@ def render_hero():
         <p>Explore a world of movies powered by intelligent recommendations tailored to your preferences.</p>
         </div></div>''', unsafe_allow_html=True)
     a, b, _ = st.columns([1, 1.5, 3])
-    a.button("Explore Movies", on_click=go, args=("Discover",), use_container_width=True, key="h1")
+    a.button("Explore Movies", on_click=go, args=("Discover",), use_container_width=True, type="primary", key="h1")
     b.button("Get Personalized Recommendations", on_click=go, args=("For You",),
              use_container_width=True, type="secondary", key="h2")
 
@@ -282,7 +292,7 @@ def render_detail():
         if url:
             st.image(url, use_container_width=True)
     with c2:
-        st.markdown(f"### {m['title']}")
+        st.markdown(f"### {display_title(m['title'])} ({year_of(m['title']) or ''})")
         st.markdown("".join(f'<span class="tag">{html.escape(g)}</span>' for g in genres_of(m)), unsafe_allow_html=True)
         if mid in STATS.index:
             s = STATS.loc[mid]
@@ -375,7 +385,7 @@ elif page == "For You":
             lam = st.slider("Relevance vs. diversity", 0.0, 1.0, 0.7, 0.1,
                             help="Higher favors relevance. Lower favors genre diversity.")
             st.caption("MMR helps balance relevance and genre diversity, introducing a broader selection of movies.")
-        go_btn = st.button("Generate recommendations", use_container_width=True)
+        go_btn = st.button("Generate recommendations", use_container_width=True, type="primary")
 
     if go_btn:
         try:
